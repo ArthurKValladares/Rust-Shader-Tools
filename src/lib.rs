@@ -67,7 +67,6 @@ impl<'a> ShaderCompiler<'a> {
             .ok_or_else(|| ShaderCompilationError::NonUtf8Path(shader_path.to_owned()))?;
         let code = fs::read_to_string(shader_path)?;
 
-        // TODO: better wayt to get shader kind, hook up additional_options
         let compiled_shader = self
             .compiler
             .compile_into_spirv(
