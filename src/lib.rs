@@ -12,6 +12,8 @@ pub enum ShaderCompilationError {
     NonUtf8Path(std::path::PathBuf),
     #[error("path does not contain a valid file name")]
     NoFileName(std::path::PathBuf),
+    #[error("Could not compiler shader: {0}")]
+    CompilationFailed(shaderc::Error),
 }
 
 pub struct ShaderCompiler<'a> {
@@ -51,13 +53,16 @@ impl<'a> ShaderCompiler<'a> {
         let code = fs::read_to_string(shader_path)?;
 
         // TODO: better wayt to get shader kind, hook up additional_options
-        let compiled_shader = self.compiler.compile_into_spirv(
-            &code,
-            shaderc::ShaderKind::InferFromSource,
-            file_name,
-            "main",
-            Some(&self.options),
-        )?;
+        let compiled_shader = self
+            .compiler
+            .compile_into_spirv(
+                &code,
+                shaderc::ShaderKind::InferFromSource,
+                file_name,
+                "main",
+                Some(&self.options),
+            )
+            .map_err(ShaderCompilationError::CompilationFailed)?;
 
         std::fs::write(&output_path, compiled_shader.as_binary_u8())?;
 
