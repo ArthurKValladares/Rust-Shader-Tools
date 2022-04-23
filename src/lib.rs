@@ -16,6 +16,20 @@ pub enum ShaderCompilationError {
     CompilationFailed(shaderc::Error),
 }
 
+pub enum ShaderStage {
+    Vertex,
+    Fragment,
+}
+
+impl From<ShaderStage> for shaderc::ShaderKind {
+    fn from(stage: ShaderStage) -> Self {
+        match stage {
+            ShaderStage::Vertex => shaderc::ShaderKind::Vertex,
+            ShaderStage::Fragment => shaderc::ShaderKind::Fragment,
+        }
+    }
+}
+
 pub struct ShaderCompiler<'a> {
     compiler: shaderc::Compiler,
     options: shaderc::CompileOptions<'a>,
@@ -41,6 +55,7 @@ impl<'a> ShaderCompiler<'a> {
         &self,
         shader_path: impl AsRef<Path>,
         output_path: impl AsRef<Path>,
+        shader_stage: ShaderStage,
     ) -> Result<()> {
         let shader_path = shader_path.as_ref();
         let output_path = output_path.as_ref();
@@ -57,7 +72,7 @@ impl<'a> ShaderCompiler<'a> {
             .compiler
             .compile_into_spirv(
                 &code,
-                shaderc::ShaderKind::InferFromSource,
+                shader_stage.into(),
                 file_name,
                 "main",
                 Some(&self.options),
