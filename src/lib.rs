@@ -23,8 +23,14 @@ impl<'a> ShaderCompiler<'a> {
     pub fn new() -> Result<Self> {
         let compiler =
             shaderc::Compiler::new().ok_or(ShaderCompilationError::CompilerCreationFailed)?;
-        let options = shaderc::CompileOptions::new()
+        let mut options = shaderc::CompileOptions::new()
             .ok_or(ShaderCompilationError::CompilerOptionsCreationFailed)?;
+        options.set_target_env(
+            shaderc::TargetEnv::Vulkan,
+            shaderc::EnvVersion::Vulkan1_2 as u32,
+        );
+        options.set_optimization_level(shaderc::OptimizationLevel::Performance);
+        options.add_macro_definition("EP", Some("main"));
 
         Ok(Self { compiler, options })
     }
@@ -50,7 +56,7 @@ impl<'a> ShaderCompiler<'a> {
             shaderc::ShaderKind::InferFromSource,
             file_name,
             "main",
-            None,
+            Some(&self.options),
         )?;
 
         std::fs::write(&output_path, compiled_shader.as_binary_u8())?;
