@@ -1,20 +1,30 @@
+use anyhow::Result;
+use std::{fs, path::Path};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ShaderCompilationError {
+    #[error("could not create shader compiler")]
+    CompilerCreationFailed,
+    #[error("could not create shader compiler options")]
+    CompilerOptionsCreationFailed,
     #[error("the shader path is not a valid UTF-8 string")]
     NonUtf8Path(std::path::PathBuf),
+    #[error("path does not contain a valid file name")]
+    NoFileName(std::path::PathBuf),
 }
 
-pub struct ShaderCompiler {
+pub struct ShaderCompiler<'a> {
     compiler: shaderc::Compiler,
-    options: shaderc::CompileOptions,
+    options: shaderc::CompileOptions<'a>,
 }
 
-impl ShaderCompiler {
+impl<'a> ShaderCompiler<'a> {
     pub fn new() -> Result<Self> {
-        let compiler = shaderc::Compiler::new()?;
-        let options = shaderc::CompileOptions::new()?;
+        let compiler =
+            shaderc::Compiler::new().ok_or(ShaderCompilationError::CompilerCreationFailed)?;
+        let options = shaderc::CompileOptions::new()
+            .ok_or(ShaderCompilationError::CompilerOptionsCreationFailed)?;
 
         Ok(Self { compiler, options })
     }
@@ -29,6 +39,8 @@ impl ShaderCompiler {
 
         let file_name = shader_path
             .file_name()
+            .ok_or_else(|| ShaderCompilationError::NoFileName(shader_path.to_owned()))?
+            .to_str()
             .ok_or_else(|| ShaderCompilationError::NonUtf8Path(shader_path.to_owned()))?;
         let code = fs::read_to_string(shader_path)?;
 
@@ -36,7 +48,7 @@ impl ShaderCompiler {
         let compiled_shader = self.compiler.compile_into_spirv(
             &code,
             shaderc::ShaderKind::InferFromSource,
-            &file_name,
+            file_name,
             "main",
             None,
         )?;
