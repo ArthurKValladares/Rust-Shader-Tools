@@ -8,6 +8,8 @@ pub enum ShaderCompilationError {
     CompilerCreationFailed,
     #[error("could not create shader compiler options")]
     CompilerOptionsCreationFailed,
+    #[error("could not get shader output path")]
+    CouldNotGetShaderOutputPath,
     #[error("the shader path is not a valid UTF-8 string")]
     NonUtf8Path(std::path::PathBuf),
     #[error("path does not contain a valid file name")]
@@ -54,7 +56,7 @@ impl<'a> ShaderCompiler<'a> {
     pub fn compile_shader(
         &self,
         shader_path: impl AsRef<Path>,
-        output_path: impl AsRef<Path>,
+        output_path: Option<impl AsRef<Path>>,
         shader_stage: ShaderStage,
     ) -> Result<()> {
         let shader_path = shader_path.as_ref();
@@ -78,8 +80,23 @@ impl<'a> ShaderCompiler<'a> {
             )
             .map_err(ShaderCompilationError::CompilationFailed)?;
 
-        std::fs::write(&output_path, compiled_shader.as_binary_u8())?;
-
+        let output_path = if let Some(output_path) = output_path {
+            let output_path = output_path.as_ref().to_owned();
+            Ok(output_path)
+        } else if let Some(parents) = shader_path.parent() {
+            if let Some(file_name) = shader_path.file_name() {
+                if let Some(file_name) = file_name.to_str() {
+                    Ok(parents.join("spv").join(format!("{}.spv", file_name)))
+                } else {
+                    Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
+                }
+            } else {
+                Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
+            }
+        } else {
+            Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
+        }?;
+        std::fs::write(output_path, compiled_shader.as_binary_u8())?;
         Ok(())
     }
 }
