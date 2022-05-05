@@ -18,7 +18,7 @@ pub enum ShaderCompilationError {
     CompilationFailed(shaderc::Error),
 }
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub enum ShaderStage {
     Vertex,
     Fragment,
