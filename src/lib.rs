@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::sync::{Arc, Mutex};
 use std::{fs, path::Path};
 use thiserror::Error;
 
@@ -16,6 +17,8 @@ pub enum ShaderCompilationError {
     NoFileName(std::path::PathBuf),
     #[error("Could not compiler shader: {0}")]
     CompilationFailed(shaderc::Error),
+    #[error("Could not acquire mutex lock")]
+    CouldNotAcquireLock,
 }
 
 pub enum ShaderStage {
@@ -34,7 +37,7 @@ impl From<ShaderStage> for shaderc::ShaderKind {
 
 pub struct ShaderCompiler<'a> {
     compiler: shaderc::Compiler,
-    options: shaderc::CompileOptions<'a>,
+    options: Arc<Mutex<shaderc::CompileOptions<'a>>>,
 }
 
 impl<'a> ShaderCompiler<'a> {
@@ -50,7 +53,10 @@ impl<'a> ShaderCompiler<'a> {
         options.set_optimization_level(shaderc::OptimizationLevel::Performance);
         options.add_macro_definition("EP", Some("main"));
 
-        Ok(Self { compiler, options })
+        Ok(Self {
+            compiler,
+            options: Arc::new(Mutex::new(options)),
+        })
     }
 
     pub fn compile_shader_with_output_path(
@@ -69,6 +75,10 @@ impl<'a> ShaderCompiler<'a> {
             .ok_or_else(|| ShaderCompilationError::NonUtf8Path(shader_path.to_owned()))?;
         let code = fs::read_to_string(shader_path)?;
 
+        let options = self
+            .options
+            .lock()
+            .map_err(|_| ShaderCompilationError::CouldNotAcquireLock)?;
         let compiled_shader = self
             .compiler
             .compile_into_spirv(
@@ -76,7 +86,7 @@ impl<'a> ShaderCompiler<'a> {
                 shader_stage.into(),
                 file_name,
                 "main",
-                Some(&self.options),
+                Some(&options),
             )
             .map_err(ShaderCompilationError::CompilationFailed)?;
 
