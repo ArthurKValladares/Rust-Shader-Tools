@@ -53,10 +53,10 @@ impl<'a> ShaderCompiler<'a> {
         Ok(Self { compiler, options })
     }
 
-    pub fn compile_shader(
+    pub fn compile_shader_with_output_path(
         &self,
         shader_path: impl AsRef<Path>,
-        output_path: Option<impl AsRef<Path>>,
+        output_path: impl AsRef<Path>,
         shader_stage: ShaderStage,
     ) -> Result<()> {
         let shader_path = shader_path.as_ref();
@@ -80,10 +80,17 @@ impl<'a> ShaderCompiler<'a> {
             )
             .map_err(ShaderCompilationError::CompilationFailed)?;
 
-        let output_path = if let Some(output_path) = output_path {
-            let output_path = output_path.as_ref().to_owned();
-            Ok(output_path)
-        } else if let Some(parents) = shader_path.parent() {
+        std::fs::write(output_path, compiled_shader.as_binary_u8())?;
+        Ok(())
+    }
+
+    pub fn compile_shader(
+        &self,
+        shader_path: impl AsRef<Path>,
+        shader_stage: ShaderStage,
+    ) -> Result<()> {
+        let shader_path = shader_path.as_ref();
+        let output_path = if let Some(parents) = shader_path.parent() {
             if let Some(file_name) = shader_path.file_name() {
                 if let Some(file_name) = file_name.to_str() {
                     Ok(parents.join("spv").join(format!("{}.spv", file_name)))
@@ -96,7 +103,6 @@ impl<'a> ShaderCompiler<'a> {
         } else {
             Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
         }?;
-        std::fs::write(output_path, compiled_shader.as_binary_u8())?;
-        Ok(())
+        self.compile_shader_with_output_path(shader_path, output_path, shader_stage)
     }
 }
