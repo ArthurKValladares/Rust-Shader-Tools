@@ -16,6 +16,8 @@ pub enum ShaderCompilationError {
     NoFileName(std::path::PathBuf),
     #[error("Could not compiler shader: {0}")]
     CompilationFailed(shaderc::Error),
+    #[error("Could not create directory: {0}")]
+    CouldNotCreateDir(std::io::Error),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -62,7 +64,9 @@ impl<'a> ShaderCompiler<'a> {
     ) -> Result<()> {
         let shader_path = shader_path.as_ref();
         let output_path = output_path.as_ref();
-
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).map_err(ShaderCompilationError::CouldNotCreateDir)?;
+        }
         let file_name = shader_path
             .file_name()
             .ok_or_else(|| ShaderCompilationError::NoFileName(shader_path.to_owned()))?
