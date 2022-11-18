@@ -1,5 +1,6 @@
 use anyhow::Result;
 pub use shaderc::{EnvVersion, OptimizationLevel};
+use spirv_reflect::ShaderModule;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -125,5 +126,27 @@ impl<'a> ShaderCompiler<'a> {
             Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
         }?;
         self.compile_shader_with_output_path(shader_path, output_path, shader_stage)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ShaderReflectionError {
+    #[error("could not create shader module: {0}")]
+    ShaderModuleCreationError(&'static str),
+}
+
+pub struct ShaderData {
+    module: ShaderModule,
+}
+
+impl ShaderData {
+    pub fn from_spv(spv_data: &[u8]) -> Result<Self, ShaderReflectionError> {
+        let module = ShaderModule::load_u8_data(spv_data)
+            .map_err(ShaderReflectionError::ShaderModuleCreationError)?;
+        Ok(ShaderData { module })
+    }
+
+    pub fn module(&self) -> &ShaderModule {
+        &self.module
     }
 }
