@@ -1,5 +1,9 @@
 use anyhow::Result;
-use std::{fs, path::Path};
+pub use shaderc::{EnvVersion, OptimizationLevel};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -41,18 +45,30 @@ pub struct ShaderCompiler<'a> {
 }
 
 impl<'a> ShaderCompiler<'a> {
-    pub fn new() -> Result<Self> {
+    pub fn new(
+        env_version: EnvVersion,
+        opt_level: OptimizationLevel,
+        include_dir: Option<PathBuf>,
+    ) -> Result<Self> {
         let compiler =
             shaderc::Compiler::new().ok_or(ShaderCompilationError::CompilerCreationFailed)?;
         let mut options = shaderc::CompileOptions::new()
             .ok_or(ShaderCompilationError::CompilerOptionsCreationFailed)?;
-        options.set_target_env(
-            shaderc::TargetEnv::Vulkan,
-            shaderc::EnvVersion::Vulkan1_2 as u32,
-        );
-        options.set_optimization_level(shaderc::OptimizationLevel::Performance);
+        options.set_target_env(shaderc::TargetEnv::Vulkan, env_version as u32);
+        options.set_optimization_level(opt_level);
         options.add_macro_definition("EP", Some("main"));
-
+        if let Some(include_dir) = include_dir {
+            options.set_include_callback(move |name, _, _, _| {
+                let file_path = include_dir.join(name);
+                let contents = std::fs::read_to_string(&file_path).unwrap_or_else(|_| {
+                    panic!("Could not read shader include at: {:?}", file_path)
+                });
+                Result::Ok(shaderc::ResolvedInclude {
+                    resolved_name: name.to_string(),
+                    content: contents,
+                })
+            });
+        }
         Ok(Self { compiler, options })
     }
 
