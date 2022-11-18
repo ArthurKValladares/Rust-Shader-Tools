@@ -140,8 +140,8 @@ pub struct ShaderData {
 }
 
 impl ShaderData {
-    pub fn from_spv(spv_data: &[u8]) -> Result<Self, ShaderReflectionError> {
-        let module = ShaderModule::load_u8_data(spv_data)
+    pub fn from_spv(spv_data: &[u32]) -> Result<Self, ShaderReflectionError> {
+        let module = ShaderModule::load_u32_data(spv_data)
             .map_err(ShaderReflectionError::ShaderModuleCreationError)?;
         Ok(ShaderData { module })
     }
