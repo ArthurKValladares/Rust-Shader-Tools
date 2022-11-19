@@ -1,11 +1,14 @@
 use anyhow::Result;
-pub use shaderc::{EnvVersion, OptimizationLevel};
 use spirv_reflect::ShaderModule;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 use thiserror::Error;
+pub use {
+    shaderc::{EnvVersion, OptimizationLevel},
+    spirv_reflect::types::variable::ReflectShaderStageFlags,
+};
 
 #[derive(Debug, Error)]
 pub enum ShaderCompilationError {
@@ -148,5 +151,9 @@ impl ShaderData {
 
     pub fn module(&self) -> &ShaderModule {
         &self.module
+    }
+
+    pub fn stage(&self) -> ReflectShaderStageFlags {
+        self.module.get_shader_stage()
     }
 }
