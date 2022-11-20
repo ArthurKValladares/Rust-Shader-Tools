@@ -1,5 +1,8 @@
 use anyhow::Result;
-use spirv_reflect::ShaderModule;
+use spirv_reflect::{
+    types::{ReflectDecorationFlags, ReflectTypeFlags},
+    ShaderModule,
+};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -132,6 +135,26 @@ impl<'a> ShaderCompiler<'a> {
     }
 }
 
+// TODO: This will be much better later when I actually turn this into a build-time syn thing
+#[derive(Debug)]
+pub enum ShaderStructType {
+    Vec2,
+    Vec3,
+    Vec4,
+}
+
+#[derive(Debug)]
+pub struct StructMember {
+    pub name: String,
+    pub ty: ShaderStructType,
+}
+
+#[derive(Debug)]
+pub struct ShaderStruct {
+    pub name: String,
+    pub members: Vec<StructMember>,
+}
+
 #[derive(Debug, Error)]
 pub enum ShaderReflectionError {
     #[error("could not create shader module: {0}")]
@@ -155,5 +178,74 @@ impl ShaderData {
 
     pub fn stage(&self) -> ReflectShaderStageFlags {
         self.module.get_shader_stage()
+    }
+
+    // TODO: This is largely very bad
+    pub fn get_shader_structs(&self) -> Vec<ShaderStruct> {
+        let ty_descriptors = self
+            .module
+            .enumerate_descriptor_bindings(None)
+            .unwrap()
+            .iter()
+            .map(|binding| &binding.block)
+            .filter(|block| block.type_description.is_some())
+            .map(|block| block.type_description.as_ref().unwrap().clone())
+            .collect::<Vec<_>>();
+        let structs = ty_descriptors
+            .iter()
+            .filter(|ty_descriptor| ty_descriptor.type_flags.contains(ReflectTypeFlags::STRUCT))
+            .cloned()
+            .collect::<Vec<_>>();
+        let structs = {
+            let mut ret = Vec::new();
+            for stct in structs {
+                // TODO: This logic should **probably** be recursive, but I doubt I will even actually need that
+                if stct
+                    .decoration_flags
+                    .contains(ReflectDecorationFlags::BUFFER_BLOCK)
+                {
+                    for rec in stct.members {
+                        if rec.type_flags.contains(ReflectTypeFlags::STRUCT) {
+                            ret.push(rec);
+                        }
+                    }
+                } else {
+                    ret.push(stct);
+                }
+            }
+            ret
+        };
+        structs
+            .iter()
+            .map(|stct| {
+                let name = stct.type_name.clone();
+                let members = stct
+                    .members
+                    .iter()
+                    .map(|s| {
+                        let name = s.struct_member_name.clone();
+                        let ty = {
+                            if s.type_flags
+                                .contains(ReflectTypeFlags::FLOAT | ReflectTypeFlags::VECTOR)
+                            {
+                                // TODO: Atm only support `vec2, vec3, and vec4`
+                                let num = s.traits.numeric.vector.component_count;
+                                match num {
+                                    2 => ShaderStructType::Vec2,
+                                    3 => ShaderStructType::Vec3,
+                                    4 => ShaderStructType::Vec4,
+                                    _ => unimplemented!(),
+                                }
+                            } else {
+                                // TODO: Can support more types later
+                                unimplemented!()
+                            }
+                        };
+                        StructMember { name, ty }
+                    })
+                    .collect::<Vec<_>>();
+                ShaderStruct { name, members }
+            })
+            .collect::<Vec<_>>()
     }
 }
