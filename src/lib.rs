@@ -7,7 +7,9 @@ use std::{
 use thiserror::Error;
 pub use {
     shaderc::{EnvVersion, OptimizationLevel},
-    spirv_reflect::types::variable::ReflectShaderStageFlags,
+    spirv_reflect::types::{
+        descriptor::ReflectDescriptorBinding, variable::ReflectShaderStageFlags,
+    },
 };
 
 #[derive(Debug, Error)]
