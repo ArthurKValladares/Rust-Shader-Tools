@@ -306,6 +306,7 @@ pub fn shader_struct_to_rust(
         parse_quote! {
             #[repr(C)]
             #[derive(Debug, Copy, Clone)]
+            #[derive(rkvy::Archive, rkvy::Deserialize, rkvy::Serialize)]
             pub struct #struct_ident {
                 #(#fields,)*
             }
@@ -313,7 +314,7 @@ pub fn shader_struct_to_rust(
     } else {
         parse_quote! {
             #[repr(C)]
-            #[derive(Debug)]
+            #[derive(Debug, Copy, Clone)]
             pub struct #struct_ident {
                 #(#fields,)*
             }
