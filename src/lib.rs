@@ -7,6 +7,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+#[cfg(feature = "shader-structs")]
+use syn::parse_quote;
 use thiserror::Error;
 pub use {
     shaderc::{EnvVersion, OptimizationLevel},
@@ -136,6 +138,7 @@ impl<'a> ShaderCompiler<'a> {
 }
 
 // TODO: This will be much better later when I actually turn this into a build-time syn thing
+#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub enum ShaderStructType {
     Vec2,
@@ -143,6 +146,7 @@ pub enum ShaderStructType {
     Vec4,
 }
 
+#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct StructMember {
     pub name: String,
@@ -257,9 +261,16 @@ impl ShaderData {
 }
 
 #[cfg(feature = "shader-structs")]
-pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
-    use syn::parse_quote;
+#[derive(Debug, Error)]
+pub enum ShaderStructError {
+    #[error("Could not create directory: {0}")]
+    CouldNotCreateDir(std::io::Error),
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+}
 
+#[cfg(feature = "shader-structs")]
+pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
     fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
         syn::Field {
             attrs: vec![],
@@ -290,10 +301,25 @@ pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) ->
     parse_quote! {
         #[repr(C)]
         #[derive(Debug)]
-        pub struct Test {
+        pub struct #struct_ident {
             #(#fields,)*
         }
     }
+}
+
+#[cfg(feature = "shader-structs")]
+pub fn structs_to_file(
+    path: impl AsRef<Path>,
+    structs: &[syn::ItemStruct],
+) -> Result<(), ShaderStructError> {
+    let path = path.as_ref();
+    fs::create_dir_all(path).map_err(ShaderStructError::CouldNotCreateDir)?;
+    let file: syn::File = parse_quote! {
+        #(#structs,)*
+    };
+    let formatted = prettyplease::unparse(&file);
+    std::fs::write(path, &formatted)?;
+    Ok(())
 }
 
 #[cfg(feature = "shader-structs")]
