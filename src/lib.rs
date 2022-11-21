@@ -149,12 +149,14 @@ pub struct StructMember {
     pub ty: ShaderStructType,
 }
 
+#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct ShaderStruct {
     pub name: String,
     pub members: Vec<StructMember>,
 }
 
+#[cfg(feature = "shader-structs")]
 #[derive(Debug, Error)]
 pub enum ShaderReflectionError {
     #[error("could not create shader module: {0}")]
@@ -180,7 +182,12 @@ impl ShaderData {
         self.module.get_shader_stage()
     }
 
+    pub fn source_file(&self) -> String {
+        self.module.get_source_file()
+    }
+
     // TODO: This is largely very bad
+    #[cfg(feature = "shader-structs")]
     pub fn get_shader_structs(&self) -> Vec<ShaderStruct> {
         let ty_descriptors = self
             .module
@@ -247,5 +254,45 @@ impl ShaderData {
                 ShaderStruct { name, members }
             })
             .collect::<Vec<_>>()
+    }
+}
+
+#[cfg(feature = "shader-structs")]
+pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
+    use syn::parse_quote;
+
+    fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
+        syn::Field {
+            attrs: vec![],
+            vis: syn::Visibility::Public(syn::VisPublic {
+                pub_token: syn::token::Pub::default(),
+            }),
+            ident: Some(ident),
+            colon_token: Some(Default::default()),
+            ty,
+        }
+    }
+
+    let fields = shader_struct
+        .members
+        .iter()
+        .map(|member| {
+            let ty: syn::Type = match member.ty {
+                ShaderStructType::Vec2 => parse_quote!([f32; 2]),
+                ShaderStructType::Vec3 => parse_quote!([f32; 3]),
+                ShaderStructType::Vec4 => parse_quote!([f32; 4]),
+            };
+            let ident = syn::Ident::new(&member.name, proc_macro2::Span::call_site());
+            field_from_ident_and_type(ident, ty)
+        })
+        .collect::<Vec<_>>();
+
+    let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
+    parse_quote! {
+        #[repr(C)]
+        #[derive(Debug)]
+        pub struct Test {
+            #(#fields,)*
+        }
     }
 }
