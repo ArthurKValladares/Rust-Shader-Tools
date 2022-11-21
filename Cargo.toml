@@ -5,7 +5,6 @@ edition = "2021"
 
 [features]
 shader-structs = ["proc-macro2", "quote", "syn", "heck", "prettyplease"]
-krvy = []
 
 [dependencies]
 anyhow = "1"
