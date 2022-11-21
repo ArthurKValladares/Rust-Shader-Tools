@@ -315,7 +315,7 @@ pub fn structs_to_file(
     let path = path.as_ref();
     fs::create_dir_all(path).map_err(ShaderStructError::CouldNotCreateDir)?;
     let file: syn::File = parse_quote! {
-        #(#structs,)*
+        #(#structs)*
     };
     let formatted = prettyplease::unparse(&file);
     std::fs::write(path, &formatted)?;
