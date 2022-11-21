@@ -156,7 +156,6 @@ pub struct ShaderStruct {
     pub members: Vec<StructMember>,
 }
 
-#[cfg(feature = "shader-structs")]
 #[derive(Debug, Error)]
 pub enum ShaderReflectionError {
     #[error("could not create shader module: {0}")]
