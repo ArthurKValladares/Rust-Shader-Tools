@@ -313,7 +313,9 @@ pub fn structs_to_file(
     structs: &[syn::ItemStruct],
 ) -> Result<(), ShaderStructError> {
     let path = path.as_ref();
-    fs::create_dir_all(path).map_err(ShaderStructError::CouldNotCreateDir)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(ShaderStructError::CouldNotCreateDir)?;
+    }
     let file: syn::File = parse_quote! {
         #(#structs)*
     };
