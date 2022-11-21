@@ -305,7 +305,7 @@ pub fn shader_struct_to_rust(
     if archive {
         parse_quote! {
             #[repr(C)]
-            #[derive(Debug, Copy, Clone)]
+            #[derive(Debug, Default, Copy, Clone)]
             #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
             pub struct #struct_ident {
                 #(#fields,)*
@@ -314,7 +314,7 @@ pub fn shader_struct_to_rust(
     } else {
         parse_quote! {
             #[repr(C)]
-            #[derive(Debug, Copy, Clone)]
+            #[derive(Debug, Default, Copy, Clone)]
             pub struct #struct_ident {
                 #(#fields,)*
             }
