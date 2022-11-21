@@ -270,7 +270,11 @@ pub enum ShaderStructError {
 }
 
 #[cfg(feature = "shader-structs")]
-pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
+pub fn shader_struct_to_rust(
+    struct_name: &str,
+    shader_struct: &ShaderStruct,
+    archive: bool,
+) -> syn::ItemStruct {
     fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
         syn::Field {
             attrs: vec![],
@@ -298,11 +302,21 @@ pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) ->
         .collect::<Vec<_>>();
 
     let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
-    parse_quote! {
-        #[repr(C)]
-        #[derive(Debug)]
-        pub struct #struct_ident {
-            #(#fields,)*
+    if archive {
+        parse_quote! {
+            #[repr(C)]
+            #[derive(Debug, Copy, Clone)]
+            pub struct #struct_ident {
+                #(#fields,)*
+            }
+        }
+    } else {
+        parse_quote! {
+            #[repr(C)]
+            #[derive(Debug)]
+            pub struct #struct_ident {
+                #(#fields,)*
+            }
         }
     }
 }
