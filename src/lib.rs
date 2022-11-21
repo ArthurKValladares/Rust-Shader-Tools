@@ -296,3 +296,9 @@ pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) ->
         }
     }
 }
+
+#[cfg(feature = "shader-structs")]
+pub fn standardized_struct_name(shader_source_file: &str, type_name: &str) -> String {
+    use heck::ToUpperCamelCase;
+    format!("{}{}", shader_source_file, type_name).to_upper_camel_case()
+}
