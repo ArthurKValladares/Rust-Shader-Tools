@@ -144,6 +144,8 @@ pub enum ShaderStructType {
     Vec2,
     Vec3,
     Vec4,
+    Mat3,
+    Mat4,
 }
 
 #[cfg(feature = "shader-structs")]
@@ -239,12 +241,19 @@ impl ShaderData {
                                 .contains(ReflectTypeFlags::FLOAT | ReflectTypeFlags::VECTOR)
                             {
                                 // TODO: Atm only support `vec2, vec3, and vec4`
-                                let num = s.traits.numeric.vector.component_count;
-                                match num {
-                                    2 => ShaderStructType::Vec2,
-                                    3 => ShaderStructType::Vec3,
-                                    4 => ShaderStructType::Vec4,
-                                    _ => unimplemented!(),
+                                let num_components = s.traits.numeric.vector.component_count;
+                                let row_count = s.traits.numeric.matrix.row_count;
+                                let column_count = s.traits.numeric.matrix.column_count;
+                                match (num_components, row_count, column_count) {
+                                    (2, 0, 0) => ShaderStructType::Vec2,
+                                    (3, 0, 0) => ShaderStructType::Vec3,
+                                    (4, 0, 0) => ShaderStructType::Vec4,
+                                    (3, 3, 3) => ShaderStructType::Mat3,
+                                    (4, 4, 4) => ShaderStructType::Mat4,
+                                    _ => panic!(
+                                        "Not implemented: components: {}, row: {}, column: {}",
+                                        num_components, row_count, column_count
+                                    ),
                                 }
                             } else {
                                 // TODO: Can support more types later
@@ -295,6 +304,8 @@ pub fn shader_struct_to_rust(
                 ShaderStructType::Vec2 => parse_quote!([f32; 2]),
                 ShaderStructType::Vec3 => parse_quote!([f32; 3]),
                 ShaderStructType::Vec4 => parse_quote!([f32; 4]),
+                ShaderStructType::Mat3 => parse_quote!([[f32; 3]; 3]),
+                ShaderStructType::Mat4 => parse_quote!([[f32; 4]; 4]),
             };
             let ident = syn::Ident::new(&member.name, proc_macro2::Span::call_site());
             field_from_ident_and_type(ident, ty)
