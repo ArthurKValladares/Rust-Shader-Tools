@@ -12,7 +12,9 @@ use syn::parse_quote;
 use thiserror::Error;
 pub use {
     shaderc::{EnvVersion, OptimizationLevel},
-    spirv_reflect::types::{descriptor::ReflectDescriptorType, variable::ReflectShaderStageFlags},
+    spirv_reflect::types::{
+        descriptor::ReflectDescriptorType, variable::ReflectShaderStageFlags, ReflectBlockVariable,
+    },
 };
 
 #[derive(Debug, Error)]
@@ -31,6 +33,79 @@ pub enum ShaderCompilationError {
     CompilationFailed(shaderc::Error),
     #[error("Could not create directory: {0}")]
     CouldNotCreateDir(std::io::Error),
+}
+
+// TODO: This is largely very bad
+#[cfg(feature = "shader-structs")]
+pub fn get_structs_from_blocks(blocks: &[ReflectBlockVariable]) -> Vec<ShaderStruct> {
+    let ty_descriptors = blocks
+        .iter()
+        .filter(|block| block.type_description.is_some())
+        .map(|block| block.type_description.as_ref().unwrap().clone())
+        .collect::<Vec<_>>();
+    let structs = ty_descriptors
+        .iter()
+        .filter(|ty_descriptor| ty_descriptor.type_flags.contains(ReflectTypeFlags::STRUCT))
+        .cloned()
+        .collect::<Vec<_>>();
+    let structs = {
+        let mut ret = Vec::new();
+        for stct in structs {
+            // TODO: This logic should **probably** be recursive, but I doubt I will even actually need that
+            if stct
+                .decoration_flags
+                .contains(ReflectDecorationFlags::BUFFER_BLOCK)
+            {
+                for rec in stct.members {
+                    if rec.type_flags.contains(ReflectTypeFlags::STRUCT) {
+                        ret.push(rec);
+                    }
+                }
+            } else {
+                ret.push(stct);
+            }
+        }
+        ret
+    };
+    structs
+        .iter()
+        .map(|stct| {
+            let name = stct.type_name.clone();
+            let members = stct
+                .members
+                .iter()
+                .map(|s| {
+                    let name = s.struct_member_name.clone();
+                    let ty = {
+                        if s.type_flags
+                            .contains(ReflectTypeFlags::FLOAT | ReflectTypeFlags::VECTOR)
+                        {
+                            // TODO: Atm only support `vec2, vec3, and vec4`
+                            let num_components = s.traits.numeric.vector.component_count;
+                            let row_count = s.traits.numeric.matrix.row_count;
+                            let column_count = s.traits.numeric.matrix.column_count;
+                            match (num_components, row_count, column_count) {
+                                (2, 0, 0) => ShaderStructType::Vec2,
+                                (3, 0, 0) => ShaderStructType::Vec3,
+                                (4, 0, 0) => ShaderStructType::Vec4,
+                                (3, 3, 3) => ShaderStructType::Mat3,
+                                (4, 4, 4) => ShaderStructType::Mat4,
+                                _ => panic!(
+                                    "Not implemented: components: {}, row: {}, column: {}",
+                                    num_components, row_count, column_count
+                                ),
+                            }
+                        } else {
+                            // TODO: Can support more types later
+                            unimplemented!()
+                        }
+                    };
+                    StructMember { name, ty }
+                })
+                .collect::<Vec<_>>();
+            ShaderStruct { name, members }
+        })
+        .collect::<Vec<_>>()
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -194,78 +269,21 @@ impl ShaderData {
     // TODO: This is largely very bad
     #[cfg(feature = "shader-structs")]
     pub fn get_shader_structs(&self) -> Vec<ShaderStruct> {
-        let ty_descriptors = self
+        let blocks = self
             .module
             .enumerate_descriptor_bindings(None)
             .unwrap()
             .iter()
-            .map(|binding| &binding.block)
-            .filter(|block| block.type_description.is_some())
-            .map(|block| block.type_description.as_ref().unwrap().clone())
+            .map(|binding| binding.block.clone())
             .collect::<Vec<_>>();
-        let structs = ty_descriptors
-            .iter()
-            .filter(|ty_descriptor| ty_descriptor.type_flags.contains(ReflectTypeFlags::STRUCT))
-            .cloned()
-            .collect::<Vec<_>>();
-        let structs = {
-            let mut ret = Vec::new();
-            for stct in structs {
-                // TODO: This logic should **probably** be recursive, but I doubt I will even actually need that
-                if stct
-                    .decoration_flags
-                    .contains(ReflectDecorationFlags::BUFFER_BLOCK)
-                {
-                    for rec in stct.members {
-                        if rec.type_flags.contains(ReflectTypeFlags::STRUCT) {
-                            ret.push(rec);
-                        }
-                    }
-                } else {
-                    ret.push(stct);
-                }
-            }
-            ret
-        };
-        structs
-            .iter()
-            .map(|stct| {
-                let name = stct.type_name.clone();
-                let members = stct
-                    .members
-                    .iter()
-                    .map(|s| {
-                        let name = s.struct_member_name.clone();
-                        let ty = {
-                            if s.type_flags
-                                .contains(ReflectTypeFlags::FLOAT | ReflectTypeFlags::VECTOR)
-                            {
-                                // TODO: Atm only support `vec2, vec3, and vec4`
-                                let num_components = s.traits.numeric.vector.component_count;
-                                let row_count = s.traits.numeric.matrix.row_count;
-                                let column_count = s.traits.numeric.matrix.column_count;
-                                match (num_components, row_count, column_count) {
-                                    (2, 0, 0) => ShaderStructType::Vec2,
-                                    (3, 0, 0) => ShaderStructType::Vec3,
-                                    (4, 0, 0) => ShaderStructType::Vec4,
-                                    (3, 3, 3) => ShaderStructType::Mat3,
-                                    (4, 4, 4) => ShaderStructType::Mat4,
-                                    _ => panic!(
-                                        "Not implemented: components: {}, row: {}, column: {}",
-                                        num_components, row_count, column_count
-                                    ),
-                                }
-                            } else {
-                                // TODO: Can support more types later
-                                unimplemented!()
-                            }
-                        };
-                        StructMember { name, ty }
-                    })
-                    .collect::<Vec<_>>();
-                ShaderStruct { name, members }
-            })
-            .collect::<Vec<_>>()
+
+        get_structs_from_blocks(&blocks)
+    }
+
+    #[cfg(feature = "shader-structs")]
+    fn get_push_constant_structs(&self) -> Vec<ShaderStruct> {
+        let pc_blocks = self.module.enumerate_push_constant_blocks(None).unwrap();
+        get_structs_from_blocks(&pc_blocks)
     }
 }
 
