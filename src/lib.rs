@@ -281,7 +281,7 @@ impl ShaderData {
     }
 
     #[cfg(feature = "shader-structs")]
-    fn get_push_constant_structs(&self) -> Vec<ShaderStruct> {
+    pub fn get_push_constant_structs(&self) -> Vec<ShaderStruct> {
         let pc_blocks = self.module.enumerate_push_constant_blocks(None).unwrap();
         get_structs_from_blocks(&pc_blocks)
     }
