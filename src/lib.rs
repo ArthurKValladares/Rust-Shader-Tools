@@ -36,6 +36,11 @@ pub enum ShaderCompilationError {
     CouldNotCreateDir(std::io::Error),
 }
 
+// TODO: This is really bad, need to figure out a much better way to handle this
+fn is_low_precision(name: &str) -> bool {
+    name.contains("_lowp")
+}
+
 #[cfg(feature = "shader-structs")]
 fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
     syn::Field {
@@ -280,6 +285,7 @@ pub struct VertexAttribute {
     pub format: ReflectFormat,
     pub name: String,
     pub offset: u32,
+    pub low_precision: bool,
 }
 
 #[cfg(feature = "shader-structs")]
@@ -347,13 +353,19 @@ impl ShaderData {
             .into_iter()
             .filter(|var| var.name != "gl_VertexIndex")
             .map(|var| {
-                let num_components = var.numeric.vector.component_count;
+                let low_precision = is_low_precision(&var.name);
+                let num_components = if low_precision {
+                    var.numeric.vector.component_count
+                } else {
+                    var.numeric.vector.component_count / 4
+                };
                 let component_size = var.numeric.scalar.width;
                 let size = (num_components * component_size).max(component_size);
                 let att = VertexAttribute {
                     format: var.format,
                     name: var.name,
                     offset,
+                    low_precision,
                 };
                 offset += size;
                 att
@@ -409,19 +421,23 @@ pub fn vertex_attributes_to_struct(
     let fields = attributes
         .iter()
         .map(|att| {
-            let ty: syn::Type = match att.format {
-                ReflectFormat::R32_UINT => parse_quote!(u32),
-                ReflectFormat::R32_SINT => parse_quote!(i32),
-                ReflectFormat::R32_SFLOAT => parse_quote!(f32),
-                ReflectFormat::R32G32_UINT => parse_quote!([u32; 2]),
-                ReflectFormat::R32G32_SINT => parse_quote!([i32; 2]),
-                ReflectFormat::R32G32_SFLOAT => parse_quote!([f32; 2]),
-                ReflectFormat::R32G32B32_UINT => parse_quote!([u32; 3]),
-                ReflectFormat::R32G32B32_SINT => parse_quote!([i32; 3]),
-                ReflectFormat::R32G32B32_SFLOAT => parse_quote!([f32; 3]),
-                ReflectFormat::R32G32B32A32_UINT => parse_quote!([u32; 4]),
-                ReflectFormat::R32G32B32A32_SINT => parse_quote!([i32; 4]),
-                ReflectFormat::R32G32B32A32_SFLOAT => parse_quote!([f32; 4]),
+            let is_low_precision = is_low_precision(&att.name);
+            let ty: syn::Type = match (att.format, is_low_precision) {
+                (ReflectFormat::R32_UINT, _) => parse_quote!(u32),
+                (ReflectFormat::R32_SINT, _) => parse_quote!(i32),
+                (ReflectFormat::R32_SFLOAT, _) => parse_quote!(f32),
+                (ReflectFormat::R32G32_UINT, _) => parse_quote!([u32; 2]),
+                (ReflectFormat::R32G32_SINT, _) => parse_quote!([i32; 2]),
+                (ReflectFormat::R32G32B32_UINT, _) => parse_quote!([u32; 3]),
+                (ReflectFormat::R32G32B32_SINT, _) => parse_quote!([i32; 3]),
+                (ReflectFormat::R32G32B32A32_UINT, _) => parse_quote!([u32; 4]),
+                (ReflectFormat::R32G32B32A32_SINT, _) => parse_quote!([i32; 4]),
+                (ReflectFormat::R32G32_SFLOAT, false) => parse_quote!([f32; 2]),
+                (ReflectFormat::R32G32B32_SFLOAT, false) => parse_quote!([f32; 3]),
+                (ReflectFormat::R32G32B32A32_SFLOAT, false) => parse_quote!([f32; 4]),
+                (ReflectFormat::R32G32_SFLOAT, true) => parse_quote!([u8; 2]),
+                (ReflectFormat::R32G32B32_SFLOAT, true) => parse_quote!([u8; 3]),
+                (ReflectFormat::R32G32B32A32_SFLOAT, true) => parse_quote!([u8; 4]),
                 _ => unreachable!(),
             };
             let ident = syn::Ident::new(&att.name, proc_macro2::Span::call_site());
