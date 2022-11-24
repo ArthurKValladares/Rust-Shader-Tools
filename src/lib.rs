@@ -1,8 +1,7 @@
 use anyhow::Result;
-use spirv_reflect::{
-    types::{ReflectDecorationFlags, ReflectTypeFlags},
-    ShaderModule,
-};
+#[cfg(feature = "shader-structs")]
+use spirv_reflect::types::{image::ReflectFormat, ReflectDecorationFlags, ReflectTypeFlags};
+use spirv_reflect::ShaderModule;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -237,6 +236,13 @@ pub struct ShaderStruct {
     pub members: Vec<StructMember>,
 }
 
+#[cfg(feature = "shader-structs")]
+#[derive(Debug)]
+pub struct VertexAttribute {
+    pub format: ReflectFormat,
+    pub name: String,
+}
+
 #[derive(Debug, Error)]
 pub enum ShaderReflectionError {
     #[error("could not create shader module: {0}")]
@@ -284,6 +290,19 @@ impl ShaderData {
     pub fn get_push_constant_structs(&self) -> Vec<ShaderStruct> {
         let pc_blocks = self.module.enumerate_push_constant_blocks(None).unwrap();
         get_structs_from_blocks(&pc_blocks)
+    }
+
+    #[cfg(feature = "shader-structs")]
+    pub fn get_vertex_attributes(&self) -> Vec<VertexAttribute> {
+        let mut variables = self.module.enumerate_input_variables(None).unwrap();
+        variables.sort_by(|a, b| a.location.cmp(&b.location));
+        variables
+            .into_iter()
+            .map(|var| VertexAttribute {
+                format: var.format,
+                name: var.name,
+            })
+            .collect::<Vec<_>>()
     }
 }
 
