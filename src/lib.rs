@@ -360,6 +360,7 @@ pub fn shader_struct_to_rust(
     let fields = shader_struct
         .members
         .iter()
+        .filter(|member| member.name != "gl_VertexIndex")
         .map(|member| {
             let ty: syn::Type = match member.ty {
                 ShaderStructType::Vec2 => parse_quote!([f32; 2]),
