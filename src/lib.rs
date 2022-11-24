@@ -334,6 +334,7 @@ impl ShaderData {
         variables.sort_by(|a, b| a.location.cmp(&b.location));
         variables
             .into_iter()
+            .filter(|var| var.name != "gl_VertexIndex")
             .map(|var| VertexAttribute {
                 format: var.format,
                 name: var.name,
@@ -360,7 +361,6 @@ pub fn shader_struct_to_rust(
     let fields = shader_struct
         .members
         .iter()
-        .filter(|member| member.name != "gl_VertexIndex")
         .map(|member| {
             let ty: syn::Type = match member.ty {
                 ShaderStructType::Vec2 => parse_quote!([f32; 2]),
