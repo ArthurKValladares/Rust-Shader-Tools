@@ -1,5 +1,7 @@
 use anyhow::Result;
 #[cfg(feature = "shader-structs")]
+pub use spirv_reflect::types::image::ReflectFormat;
+#[cfg(feature = "shader-structs")]
 use spirv_reflect::types::{image::ReflectFormat, ReflectDecorationFlags, ReflectTypeFlags};
 use spirv_reflect::ShaderModule;
 use std::{
