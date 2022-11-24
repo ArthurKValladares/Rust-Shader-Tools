@@ -355,9 +355,9 @@ impl ShaderData {
             .map(|var| {
                 let low_precision = is_low_precision(&var.name);
                 let num_components = if low_precision {
-                    var.numeric.vector.component_count
-                } else {
                     var.numeric.vector.component_count / 4
+                } else {
+                    var.numeric.vector.component_count
                 };
                 let component_size = var.numeric.scalar.width;
                 let size = (num_components * component_size).max(component_size);
