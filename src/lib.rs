@@ -283,8 +283,8 @@ pub struct VertexAttribute {
 #[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct VertexAttributeDesc {
-    stride: u32,
-    atts: Vec<VertexAttribute>,
+    pub stride: u32,
+    pub atts: Vec<VertexAttribute>,
 }
 
 #[derive(Debug, Error)]
