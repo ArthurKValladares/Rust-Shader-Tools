@@ -34,6 +34,42 @@ pub enum ShaderCompilationError {
     CouldNotCreateDir(std::io::Error),
 }
 
+#[cfg(feature = "shader-structs")]
+fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
+    syn::Field {
+        attrs: vec![],
+        vis: syn::Visibility::Public(syn::VisPublic {
+            pub_token: syn::token::Pub::default(),
+        }),
+        ident: Some(ident),
+        colon_token: Some(Default::default()),
+        ty,
+    }
+}
+
+#[cfg(feature = "shader-structs")]
+fn struct_from_fields(struct_name: &str, fields: &[syn::Field], archive: bool) -> syn::ItemStruct {
+    let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
+    if archive {
+        parse_quote! {
+            #[repr(C)]
+            #[derive(Debug, Default, Copy, Clone)]
+            #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
+            pub struct #struct_ident {
+                #(#fields,)*
+            }
+        }
+    } else {
+        parse_quote! {
+            #[repr(C)]
+            #[derive(Debug, Default, Copy, Clone)]
+            pub struct #struct_ident {
+                #(#fields,)*
+            }
+        }
+    }
+}
+
 // TODO: This is largely very bad
 #[cfg(feature = "shader-structs")]
 pub fn get_structs_from_blocks(blocks: &[ReflectBlockVariable]) -> Vec<ShaderStruct> {
@@ -321,18 +357,6 @@ pub fn shader_struct_to_rust(
     shader_struct: &ShaderStruct,
     archive: bool,
 ) -> syn::ItemStruct {
-    fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
-        syn::Field {
-            attrs: vec![],
-            vis: syn::Visibility::Public(syn::VisPublic {
-                pub_token: syn::token::Pub::default(),
-            }),
-            ident: Some(ident),
-            colon_token: Some(Default::default()),
-            ty,
-        }
-    }
-
     let fields = shader_struct
         .members
         .iter()
@@ -349,25 +373,39 @@ pub fn shader_struct_to_rust(
         })
         .collect::<Vec<_>>();
 
-    let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
-    if archive {
-        parse_quote! {
-            #[repr(C)]
-            #[derive(Debug, Default, Copy, Clone)]
-            #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
-            pub struct #struct_ident {
-                #(#fields,)*
-            }
-        }
-    } else {
-        parse_quote! {
-            #[repr(C)]
-            #[derive(Debug, Default, Copy, Clone)]
-            pub struct #struct_ident {
-                #(#fields,)*
-            }
-        }
-    }
+    struct_from_fields(struct_name, &fields, archive)
+}
+
+#[cfg(feature = "shader-structs")]
+pub fn vertex_attributes_to_struct(
+    struct_name: &str,
+    attributes: &[VertexAttribute],
+    archive: bool,
+) -> syn::ItemStruct {
+    let fields = attributes
+        .iter()
+        .map(|att| {
+            let ty: syn::Type = match att.format {
+                ReflectFormat::R32_UINT => parse_quote!(u32),
+                ReflectFormat::R32_SINT => parse_quote!(i32),
+                ReflectFormat::R32_SFLOAT => parse_quote!(f32),
+                ReflectFormat::R32G32_UINT => parse_quote!([u32; 2]),
+                ReflectFormat::R32G32_SINT => parse_quote!([i32; 2]),
+                ReflectFormat::R32G32_SFLOAT => parse_quote!([f32; 2]),
+                ReflectFormat::R32G32B32_UINT => parse_quote!([u32; 3]),
+                ReflectFormat::R32G32B32_SINT => parse_quote!([i32; 3]),
+                ReflectFormat::R32G32B32_SFLOAT => parse_quote!([f32; 3]),
+                ReflectFormat::R32G32B32A32_UINT => parse_quote!([u32; 4]),
+                ReflectFormat::R32G32B32A32_SINT => parse_quote!([i32; 4]),
+                ReflectFormat::R32G32B32A32_SFLOAT => parse_quote!([f32; 4]),
+                _ => unreachable!(),
+            };
+            let ident = syn::Ident::new(&att.name, proc_macro2::Span::call_site());
+            field_from_ident_and_type(ident, ty)
+        })
+        .collect::<Vec<_>>();
+
+    struct_from_fields(struct_name, &fields, archive)
 }
 
 #[cfg(feature = "shader-structs")]
