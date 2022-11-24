@@ -277,6 +277,14 @@ pub struct ShaderStruct {
 pub struct VertexAttribute {
     pub format: ReflectFormat,
     pub name: String,
+    pub offset: u32,
+}
+
+#[cfg(feature = "shader-structs")]
+#[derive(Debug)]
+pub struct VertexAttributeDesc {
+    stride: u32,
+    atts: Vec<VertexAttribute>,
 }
 
 #[derive(Debug, Error)]
@@ -329,17 +337,30 @@ impl ShaderData {
     }
 
     #[cfg(feature = "shader-structs")]
-    pub fn get_vertex_attributes(&self) -> Vec<VertexAttribute> {
+    pub fn get_vertex_attributes(&self) -> VertexAttributeDesc {
         let mut variables = self.module.enumerate_input_variables(None).unwrap();
         variables.sort_by(|a, b| a.location.cmp(&b.location));
-        variables
+        let mut offset = 0;
+        let atts = variables
             .into_iter()
             .filter(|var| var.name != "gl_VertexIndex")
-            .map(|var| VertexAttribute {
-                format: var.format,
-                name: var.name,
+            .map(|var| {
+                let num_components = var.numeric.vector.component_count;
+                let component_size = var.numeric.scalar.width;
+                let size = (num_components * component_size).max(component_size);
+                let att = VertexAttribute {
+                    format: var.format,
+                    name: var.name,
+                    offset,
+                };
+                offset += size;
+                att
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        VertexAttributeDesc {
+            stride: offset,
+            atts,
+        }
     }
 }
 
