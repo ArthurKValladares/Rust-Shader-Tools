@@ -104,6 +104,7 @@ dependencies = [
  "quote",
  "shaderc",
  "spirv-reflect",
+ "spirv_headers",
  "syn",
  "thiserror",
 ]

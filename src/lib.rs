@@ -14,7 +14,8 @@ use thiserror::Error;
 pub use {
     shaderc::{EnvVersion, OptimizationLevel},
     spirv_reflect::types::{
-        descriptor::ReflectDescriptorType, variable::ReflectShaderStageFlags, ReflectBlockVariable,
+        descriptor::ReflectDescriptorType, op::ReflectOp, variable::ReflectShaderStageFlags,
+        ReflectBlockVariable,
     },
 };
 
@@ -39,6 +40,10 @@ pub enum ShaderCompilationError {
 // TODO: This is really bad, need to figure out a much better way to handle this
 fn is_low_precision(name: &str) -> bool {
     name.contains("_lowp")
+}
+
+pub fn is_runtime_array(op: ReflectOp) -> bool {
+    *op == spirv_headers::Op::TypeRuntimeArray
 }
 
 #[cfg(feature = "shader-structs")]
