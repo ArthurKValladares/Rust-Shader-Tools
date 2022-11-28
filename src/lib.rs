@@ -466,7 +466,7 @@ pub fn structs_to_file(
 }
 
 #[cfg(feature = "shader-structs")]
-pub fn standardized_struct_name(shader_source_file: &str, type_name: &str) -> String {
+pub fn standardized_struct_name(prefix: &str, name: &str) -> String {
     use heck::ToUpperCamelCase;
-    format!("{}{}", shader_source_file, type_name).to_upper_camel_case()
+    format!("{}_{}", prefix, name).to_upper_camel_case()
 }
