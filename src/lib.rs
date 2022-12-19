@@ -159,6 +159,7 @@ pub fn get_structs_from_blocks(blocks: &[ReflectBlockVariable]) -> Vec<ShaderStr
 pub enum ShaderStage {
     Vertex,
     Fragment,
+    Compute,
 }
 
 impl From<ShaderStage> for shaderc::ShaderKind {
@@ -166,6 +167,7 @@ impl From<ShaderStage> for shaderc::ShaderKind {
         match stage {
             ShaderStage::Vertex => shaderc::ShaderKind::Vertex,
             ShaderStage::Fragment => shaderc::ShaderKind::Fragment,
+            ShaderStage::Compute => shaderc::ShaderKind::Compute,
         }
     }
 }
