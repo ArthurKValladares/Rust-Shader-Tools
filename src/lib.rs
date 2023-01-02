@@ -43,7 +43,7 @@ fn is_low_precision(name: &str) -> bool {
 }
 
 pub fn is_runtime_array(op: ReflectOp) -> bool {
-    *op == spirv_headers::Op::TypeRuntimeArray
+    *op == spirv::Op::TypeRuntimeArray
 }
 
 #[cfg(feature = "shader-structs")]
@@ -445,7 +445,9 @@ pub fn vertex_attributes_to_struct(
                 (ReflectFormat::R32G32_SFLOAT, true) => parse_quote!([u8; 2]),
                 (ReflectFormat::R32G32B32_SFLOAT, true) => parse_quote!([u8; 3]),
                 (ReflectFormat::R32G32B32A32_SFLOAT, true) => parse_quote!([u8; 4]),
-                _ => unreachable!(),
+                _ => {
+                    panic!("unsupported format: {:#?}", att)
+                }
             };
             let ident = syn::Ident::new(&att.name, proc_macro2::Span::call_site());
             field_from_ident_and_type(ident, ty)
