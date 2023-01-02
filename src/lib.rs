@@ -15,7 +15,7 @@ pub use {
     shaderc::{EnvVersion, OptimizationLevel},
     spirv_reflect::types::{
         descriptor::ReflectDescriptorType, op::ReflectOp, variable::ReflectShaderStageFlags,
-        ReflectBlockVariable,
+        ReflectBlockVariable, ReflectEntryPointLocalSize,
     },
 };
 
