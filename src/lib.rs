@@ -66,7 +66,6 @@ fn struct_from_fields(struct_name: &str, fields: &[syn::Field], archive: bool) -
         parse_quote! {
             #[repr(C)]
             #[derive(Debug, Default, Copy, Clone)]
-            #[derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
             pub struct #struct_ident {
                 #(#fields,)*
             }
