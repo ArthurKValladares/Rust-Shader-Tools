@@ -149,6 +149,8 @@ pub enum ShaderStage {
     Vertex,
     Fragment,
     Compute,
+    Task,
+    Mesh,
 }
 
 impl From<ShaderStage> for shaderc::ShaderKind {
@@ -157,6 +159,8 @@ impl From<ShaderStage> for shaderc::ShaderKind {
             ShaderStage::Vertex => shaderc::ShaderKind::Vertex,
             ShaderStage::Fragment => shaderc::ShaderKind::Fragment,
             ShaderStage::Compute => shaderc::ShaderKind::Compute,
+            ShaderStage::Task => shaderc::ShaderKind::Task,
+            ShaderStage::Mesh => shaderc::ShaderKind::Mesh,
         }
     }
 }
