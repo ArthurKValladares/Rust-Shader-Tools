@@ -60,23 +60,13 @@ fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
 }
 
 #[cfg(feature = "shader-structs")]
-fn struct_from_fields(struct_name: &str, fields: &[syn::Field], archive: bool) -> syn::ItemStruct {
+fn struct_from_fields(struct_name: &str, fields: &[syn::Field]) -> syn::ItemStruct {
     let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
-    if archive {
-        parse_quote! {
-            #[repr(C)]
-            #[derive(Debug, Default, Copy, Clone)]
-            pub struct #struct_ident {
-                #(#fields,)*
-            }
-        }
-    } else {
-        parse_quote! {
-            #[repr(C)]
-            #[derive(Debug, Default, Copy, Clone)]
-            pub struct #struct_ident {
-                #(#fields,)*
-            }
+    parse_quote! {
+        #[repr(C)]
+        #[derive(Debug, Default, Copy, Clone)]
+        pub struct #struct_ident {
+            #(#fields,)*
         }
     }
 }
@@ -394,11 +384,7 @@ pub enum ShaderStructError {
 }
 
 #[cfg(feature = "shader-structs")]
-pub fn shader_struct_to_rust(
-    struct_name: &str,
-    shader_struct: &ShaderStruct,
-    archive: bool,
-) -> syn::ItemStruct {
+pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
     let fields = shader_struct
         .members
         .iter()
@@ -415,14 +401,13 @@ pub fn shader_struct_to_rust(
         })
         .collect::<Vec<_>>();
 
-    struct_from_fields(struct_name, &fields, archive)
+    struct_from_fields(struct_name, &fields)
 }
 
 #[cfg(feature = "shader-structs")]
 pub fn vertex_attributes_to_struct(
     struct_name: &str,
     attributes: &[VertexAttribute],
-    archive: bool,
 ) -> syn::ItemStruct {
     let fields = attributes
         .iter()
@@ -453,7 +438,7 @@ pub fn vertex_attributes_to_struct(
         })
         .collect::<Vec<_>>();
 
-    struct_from_fields(struct_name, &fields, archive)
+    struct_from_fields(struct_name, &fields)
 }
 
 #[cfg(feature = "shader-structs")]
