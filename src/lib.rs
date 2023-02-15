@@ -170,6 +170,9 @@ pub struct ShaderCompiler<'a> {
     options: shaderc::CompileOptions<'a>,
 }
 
+unsafe impl<'a> Send for ShaderCompiler<'a> {}
+unsafe impl<'a> Sync for ShaderCompiler<'a> {}
+
 impl<'a> ShaderCompiler<'a> {
     pub fn new(
         env_version: EnvVersion,
