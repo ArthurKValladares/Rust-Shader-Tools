@@ -1,4 +1,5 @@
 use anyhow::Result;
+use shaderc::CompilationArtifact;
 #[cfg(feature = "shader-structs")]
 pub use spirv_reflect::types::image::ReflectFormat;
 #[cfg(feature = "shader-structs")]
@@ -204,14 +205,10 @@ impl<'a> ShaderCompiler<'a> {
     pub fn compile_shader_with_output_path(
         &self,
         shader_path: impl AsRef<Path>,
-        output_path: impl AsRef<Path>,
         shader_stage: ShaderStage,
-    ) -> Result<()> {
+    ) -> Result<CompilationArtifact> {
         let shader_path = shader_path.as_ref();
-        let output_path = output_path.as_ref();
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent).map_err(ShaderCompilationError::CouldNotCreateDir)?;
-        }
+
         let file_name = shader_path
             .file_name()
             .ok_or_else(|| ShaderCompilationError::NoFileName(shader_path.to_owned()))?
@@ -230,31 +227,46 @@ impl<'a> ShaderCompiler<'a> {
             )
             .map_err(ShaderCompilationError::CompilationFailed)?;
 
-        std::fs::write(output_path, compiled_shader.as_binary_u8())?;
-        Ok(())
+        Ok(compiled_shader)
     }
 
     pub fn compile_shader(
         &self,
         shader_path: impl AsRef<Path>,
         shader_stage: ShaderStage,
-    ) -> Result<()> {
+    ) -> Result<CompilationArtifact> {
         let shader_path = shader_path.as_ref();
-        let output_path = if let Some(parents) = shader_path.parent() {
-            if let Some(file_name) = shader_path.file_name() {
-                if let Some(file_name) = file_name.to_str() {
-                    Ok(parents.join("spv").join(format!("{}.spv", file_name)))
-                } else {
-                    Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
-                }
+        self.compile_shader_with_output_path(shader_path, shader_stage)
+    }
+}
+
+pub fn output_path(shader_path: impl AsRef<Path>) -> Result<PathBuf, ShaderCompilationError> {
+    let shader_path = shader_path.as_ref();
+    if let Some(parents) = shader_path.parent() {
+        if let Some(file_name) = shader_path.file_name() {
+            if let Some(file_name) = file_name.to_str() {
+                Ok(parents.join("spv").join(format!("{}.spv", file_name)))
             } else {
                 Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
             }
         } else {
             Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
-        }?;
-        self.compile_shader_with_output_path(shader_path, output_path, shader_stage)
+        }
+    } else {
+        Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
     }
+}
+
+pub fn write_shader_to_spv(
+    output_path: impl AsRef<Path>,
+    compiled_shader: CompilationArtifact,
+) -> Result<()> {
+    let output_path = output_path.as_ref();
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(ShaderCompilationError::CouldNotCreateDir)?;
+    }
+    std::fs::write(output_path, compiled_shader.as_binary_u8())?;
+    Ok(())
 }
 
 // TODO: This will be much better later when I actually turn this into a build-time syn thing
