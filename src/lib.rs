@@ -1,5 +1,5 @@
 use anyhow::Result;
-use shaderc::CompilationArtifact;
+pub use shaderc::CompilationArtifact;
 #[cfg(feature = "shader-structs")]
 pub use spirv_reflect::types::image::ReflectFormat;
 #[cfg(feature = "shader-structs")]
