@@ -238,6 +238,17 @@ impl<'a> ShaderCompiler<'a> {
         let shader_path = shader_path.as_ref();
         self.compile_shader_with_output_path(shader_path, shader_stage)
     }
+
+    pub fn compile_and_write_shader(
+        &self,
+        shader_path: impl AsRef<Path>,
+        shader_stage: ShaderStage,
+    ) -> Result<()> {
+        let shader_path = shader_path.as_ref();
+        let compiled_shader = self.compile_shader_with_output_path(shader_path, shader_stage)?;
+        write_shader_to_spv(output_path(shader_path)?, compiled_shader)?;
+        Ok(())
+    }
 }
 
 pub fn output_path(shader_path: impl AsRef<Path>) -> Result<PathBuf, ShaderCompilationError> {
@@ -245,7 +256,7 @@ pub fn output_path(shader_path: impl AsRef<Path>) -> Result<PathBuf, ShaderCompi
     if let Some(parents) = shader_path.parent() {
         if let Some(file_name) = shader_path.file_name() {
             if let Some(file_name) = file_name.to_str() {
-                Ok(parents.join("spv").join(format!("{}.spv", file_name)))
+                Ok(parents.join("spv").join(format!("{file_name}.spv")))
             } else {
                 Err(ShaderCompilationError::CouldNotGetShaderOutputPath)
             }
