@@ -166,28 +166,21 @@ impl From<ShaderStage> for shaderc::ShaderKind {
     }
 }
 
-pub struct ShaderCompiler<'a> {
+pub struct ShaderCompiler {
     compiler: shaderc::Compiler,
-    options: shaderc::CompileOptions<'a>,
+    env_version: EnvVersion,
+    opt_level: OptimizationLevel,
+    include_dir: Option<PathBuf>,
 }
 
-unsafe impl<'a> Send for ShaderCompiler<'a> {}
-unsafe impl<'a> Sync for ShaderCompiler<'a> {}
-
-impl<'a> ShaderCompiler<'a> {
-    pub fn new(
-        env_version: EnvVersion,
-        opt_level: OptimizationLevel,
-        include_dir: Option<PathBuf>,
-    ) -> Result<Self> {
-        let compiler =
-            shaderc::Compiler::new().ok_or(ShaderCompilationError::CompilerCreationFailed)?;
+impl ShaderCompiler {
+    fn get_options<'a>(&self) -> Result<shaderc::CompileOptions<'a>> {
         let mut options = shaderc::CompileOptions::new()
             .ok_or(ShaderCompilationError::CompilerOptionsCreationFailed)?;
-        options.set_target_env(shaderc::TargetEnv::Vulkan, env_version as u32);
-        options.set_optimization_level(opt_level);
+        options.set_target_env(shaderc::TargetEnv::Vulkan, self.env_version as u32);
+        options.set_optimization_level(self.opt_level);
         options.add_macro_definition("EP", Some("main"));
-        if let Some(include_dir) = include_dir {
+        if let Some(include_dir) = self.include_dir {
             options.set_include_callback(move |name, _, _, _| {
                 let file_path = include_dir.join(name);
                 let contents = std::fs::read_to_string(&file_path).unwrap_or_else(|_| {
@@ -199,7 +192,23 @@ impl<'a> ShaderCompiler<'a> {
                 })
             });
         }
-        Ok(Self { compiler, options })
+        Ok(options)
+    }
+
+    pub fn new(
+        env_version: EnvVersion,
+        opt_level: OptimizationLevel,
+        include_dir: Option<PathBuf>,
+    ) -> Result<Self> {
+        let compiler =
+            shaderc::Compiler::new().ok_or(ShaderCompilationError::CompilerCreationFailed)?;
+
+        Ok(Self {
+            compiler,
+            env_version,
+            opt_level,
+            include_dir,
+        })
     }
 
     pub fn compile_shader_with_output_path(
@@ -223,7 +232,7 @@ impl<'a> ShaderCompiler<'a> {
                 shader_stage.into(),
                 file_name,
                 "main",
-                Some(&self.options),
+                Some(&self.get_options()?),
             )
             .map_err(ShaderCompilationError::CompilationFailed)?;
 
