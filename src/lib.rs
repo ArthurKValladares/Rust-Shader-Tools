@@ -174,18 +174,17 @@ pub struct ShaderCompiler {
 }
 
 impl ShaderCompiler {
-    fn get_options<'a>(&self) -> Result<shaderc::CompileOptions<'a>> {
+    fn get_options(&self) -> Result<shaderc::CompileOptions<'_>> {
         let mut options = shaderc::CompileOptions::new()
             .ok_or(ShaderCompilationError::CompilerOptionsCreationFailed)?;
         options.set_target_env(shaderc::TargetEnv::Vulkan, self.env_version as u32);
         options.set_optimization_level(self.opt_level);
         options.add_macro_definition("EP", Some("main"));
-        if let Some(include_dir) = self.include_dir {
+        if let Some(include_dir) = &self.include_dir {
             options.set_include_callback(move |name, _, _, _| {
                 let file_path = include_dir.join(name);
-                let contents = std::fs::read_to_string(&file_path).unwrap_or_else(|_| {
-                    panic!("Could not read shader include at: {:?}", file_path)
-                });
+                let contents = std::fs::read_to_string(&file_path)
+                    .unwrap_or_else(|_| panic!("Could not read shader include at: {file_path:?}"));
                 Result::Ok(shaderc::ResolvedInclude {
                     resolved_name: name.to_string(),
                     content: contents,
