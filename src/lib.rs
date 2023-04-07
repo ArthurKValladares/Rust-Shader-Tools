@@ -1,15 +1,12 @@
 use anyhow::Result;
 pub use shaderc::CompilationArtifact;
-#[cfg(feature = "shader-structs")]
 pub use spirv_reflect::types::image::ReflectFormat;
-#[cfg(feature = "shader-structs")]
 use spirv_reflect::types::{ReflectDecorationFlags, ReflectTypeFlags};
 use spirv_reflect::ShaderModule;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-#[cfg(feature = "shader-structs")]
 use syn::parse_quote;
 use thiserror::Error;
 pub use {
@@ -47,7 +44,6 @@ pub fn is_runtime_array(op: ReflectOp) -> bool {
     *op == spirv::Op::TypeRuntimeArray
 }
 
-#[cfg(feature = "shader-structs")]
 fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
     syn::Field {
         attrs: vec![],
@@ -60,7 +56,6 @@ fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
     }
 }
 
-#[cfg(feature = "shader-structs")]
 fn struct_from_fields(struct_name: &str, fields: &[syn::Field]) -> syn::ItemStruct {
     let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
     parse_quote! {
@@ -73,7 +68,6 @@ fn struct_from_fields(struct_name: &str, fields: &[syn::Field]) -> syn::ItemStru
 }
 
 // TODO: This is largely very bad
-#[cfg(feature = "shader-structs")]
 pub fn get_structs_from_blocks(blocks: &[ReflectBlockVariable]) -> Vec<ShaderStruct> {
     let ty_descriptors = blocks
         .iter()
@@ -288,8 +282,6 @@ pub fn write_shader_to_spv(
     Ok(())
 }
 
-// TODO: This will be much better later when I actually turn this into a build-time syn thing
-#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub enum ShaderStructType {
     Vec2,
@@ -299,21 +291,18 @@ pub enum ShaderStructType {
     Mat4,
 }
 
-#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct StructMember {
     pub name: String,
     pub ty: ShaderStructType,
 }
 
-#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct ShaderStruct {
     pub name: String,
     pub members: Vec<StructMember>,
 }
 
-#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct VertexAttribute {
     pub format: ReflectFormat,
@@ -322,7 +311,6 @@ pub struct VertexAttribute {
     pub low_precision: bool,
 }
 
-#[cfg(feature = "shader-structs")]
 #[derive(Debug)]
 pub struct VertexAttributeDesc {
     pub stride: u32,
@@ -358,8 +346,6 @@ impl ShaderData {
         self.module.get_source_file()
     }
 
-    // TODO: This is largely very bad
-    #[cfg(feature = "shader-structs")]
     pub fn get_shader_structs(&self) -> Vec<ShaderStruct> {
         let blocks = self
             .module
@@ -372,13 +358,11 @@ impl ShaderData {
         get_structs_from_blocks(&blocks)
     }
 
-    #[cfg(feature = "shader-structs")]
     pub fn get_push_constant_structs(&self) -> Vec<ShaderStruct> {
         let pc_blocks = self.module.enumerate_push_constant_blocks(None).unwrap();
         get_structs_from_blocks(&pc_blocks)
     }
 
-    #[cfg(feature = "shader-structs")]
     pub fn get_vertex_attributes(&self) -> VertexAttributeDesc {
         let mut variables = self.module.enumerate_input_variables(None).unwrap();
         variables.sort_by(|a, b| a.location.cmp(&b.location));
@@ -412,7 +396,6 @@ impl ShaderData {
     }
 }
 
-#[cfg(feature = "shader-structs")]
 #[derive(Debug, Error)]
 pub enum ShaderStructError {
     #[error("Could not create directory: {0}")]
@@ -421,7 +404,6 @@ pub enum ShaderStructError {
     IoError(#[from] std::io::Error),
 }
 
-#[cfg(feature = "shader-structs")]
 pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
     let fields = shader_struct
         .members
@@ -442,7 +424,6 @@ pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) ->
     struct_from_fields(struct_name, &fields)
 }
 
-#[cfg(feature = "shader-structs")]
 pub fn vertex_attributes_to_struct(
     struct_name: &str,
     attributes: &[VertexAttribute],
@@ -479,7 +460,6 @@ pub fn vertex_attributes_to_struct(
     struct_from_fields(struct_name, &fields)
 }
 
-#[cfg(feature = "shader-structs")]
 pub fn structs_to_file(
     path: impl AsRef<Path>,
     structs: &[syn::ItemStruct],
@@ -496,8 +476,37 @@ pub fn structs_to_file(
     Ok(())
 }
 
-#[cfg(feature = "shader-structs")]
 pub fn standardized_struct_name(prefix: &str, name: &str) -> String {
     use heck::ToUpperCamelCase;
     format!("{}_{}", prefix, name).to_upper_camel_case()
+}
+
+pub fn write_shader_structs(bytes: &[u8], prefix: &'static str, output: impl AsRef<Path>) {
+    let shader_data = ShaderData::from_spv(bytes).unwrap();
+    let shader_structs = {
+        let mut descriptor_structs = shader_data.get_shader_structs();
+        let mut pc_structs = shader_data.get_push_constant_structs();
+        descriptor_structs.append(&mut pc_structs);
+        descriptor_structs
+    };
+
+    let mut rust_shader_structs = shader_structs
+        .into_iter()
+        .map(|stct| {
+            let struct_name = standardized_struct_name(prefix, &stct.name);
+            shader_struct_to_rust(&struct_name, &stct)
+        })
+        .collect::<Vec<_>>();
+
+    let vert_attributes = shader_data.get_vertex_attributes();
+    if !vert_attributes.atts.is_empty() {
+        let stct = vertex_attributes_to_struct(
+            &standardized_struct_name(prefix, "Vertex"),
+            &vert_attributes.atts,
+        );
+        rust_shader_structs.push(stct);
+    }
+
+    structs_to_file(output.as_ref(), &rust_shader_structs)
+        .expect("Could not write structs to file");
 }
