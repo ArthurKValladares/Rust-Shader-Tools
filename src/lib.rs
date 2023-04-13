@@ -537,6 +537,6 @@ pub fn write_shader_structs(
         rust_shader_structs.push(stct);
     }
 
-    structs_to_file(output.as_ref(), &rust_shader_structs, rkyv)
+    structs_to_file(output.as_ref(), &rust_shader_structs)
         .expect("Could not write structs to file");
 }
