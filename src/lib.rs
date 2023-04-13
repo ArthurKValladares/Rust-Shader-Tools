@@ -478,14 +478,23 @@ pub fn vertex_attributes_to_struct(
 pub fn structs_to_file(
     path: impl AsRef<Path>,
     structs: &[syn::ItemStruct],
+    rkyv: bool,
 ) -> Result<(), ShaderStructError> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(ShaderStructError::CouldNotCreateDir)?;
     }
-    let file: syn::File = parse_quote! {
-        #(#structs)*
+    let file: syn::File = if rkyv {
+        parse_quote! {
+            use crate::rkyv;
+            #(#structs)*
+        }
+    } else {
+        parse_quote! {
+            #(#structs)*
+        }
     };
+
     let formatted = prettyplease::unparse(&file);
     std::fs::write(path, &formatted)?;
     Ok(())
