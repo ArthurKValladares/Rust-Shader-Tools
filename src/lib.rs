@@ -333,6 +333,7 @@ pub enum ShaderReflectionError {
     ShaderModuleCreationError(&'static str),
 }
 
+#[derive(Default)]
 pub struct ShaderData {
     module: ShaderModule,
 }
