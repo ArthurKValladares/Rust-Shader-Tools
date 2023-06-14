@@ -51,13 +51,23 @@ fn field_from_ident_and_type(ident: syn::Ident, ty: syn::Type) -> syn::Field {
     }
 }
 
-fn struct_from_fields(struct_name: &str, fields: &[syn::Field]) -> syn::ItemStruct {
+fn struct_from_fields(struct_name: &str, fields: &[syn::Field], rkyv: bool) -> syn::ItemStruct {
     let struct_ident = syn::Ident::new(struct_name, proc_macro2::Span::call_site());
-    parse_quote! {
-        #[repr(C)]
-        #[derive(Debug, Default, Copy, Clone)]
-        pub struct #struct_ident {
-            #(#fields,)*
+    if rkyv {
+        parse_quote! {
+            #[repr(C)]
+            #[derive(Debug, Default, Copy, Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+            pub struct #struct_ident {
+                #(#fields,)*
+            }
+        }
+    } else {
+        parse_quote! {
+            #[repr(C)]
+            #[derive(Debug, Default, Copy, Clone)]
+            pub struct #struct_ident {
+                #(#fields,)*
+            }
         }
     }
 }
@@ -104,13 +114,14 @@ pub fn get_structs_from_blocks(blocks: &[ReflectBlockVariable]) -> Vec<ShaderStr
                     let name = s.struct_member_name.clone();
                     let ty = {
                         if s.type_flags
-                            .contains(ReflectTypeFlags::FLOAT | ReflectTypeFlags::VECTOR)
+                            .intersects(ReflectTypeFlags::FLOAT | ReflectTypeFlags::VECTOR)
                         {
                             // TODO: Atm only support `vec2, vec3, and vec4`
                             let num_components = s.traits.numeric.vector.component_count;
                             let row_count = s.traits.numeric.matrix.row_count;
                             let column_count = s.traits.numeric.matrix.column_count;
                             match (num_components, row_count, column_count) {
+                                (0, 0, 0) => ShaderStructType::Float,
                                 (2, 0, 0) => ShaderStructType::Vec2,
                                 (3, 0, 0) => ShaderStructType::Vec3,
                                 (4, 0, 0) => ShaderStructType::Vec4,
@@ -279,6 +290,7 @@ pub fn write_shader_to_spv(
 
 #[derive(Debug)]
 pub enum ShaderStructType {
+    Float,
     Vec2,
     Vec3,
     Vec4,
@@ -317,6 +329,7 @@ pub enum ShaderReflectionError {
     ShaderModuleCreationError(&'static str),
 }
 
+#[derive(Default)]
 pub struct ShaderData {
     module: ShaderModule,
 }
@@ -392,12 +405,17 @@ pub enum ShaderStructError {
     IoError(#[from] std::io::Error),
 }
 
-pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) -> syn::ItemStruct {
+pub fn shader_struct_to_rust(
+    struct_name: &str,
+    shader_struct: &ShaderStruct,
+    rkyv: bool,
+) -> syn::ItemStruct {
     let fields = shader_struct
         .members
         .iter()
         .map(|member| {
             let ty: syn::Type = match member.ty {
+                ShaderStructType::Float => parse_quote!(f32),
                 ShaderStructType::Vec2 => parse_quote!([f32; 2]),
                 ShaderStructType::Vec3 => parse_quote!([f32; 3]),
                 ShaderStructType::Vec4 => parse_quote!([f32; 4]),
@@ -409,12 +427,13 @@ pub fn shader_struct_to_rust(struct_name: &str, shader_struct: &ShaderStruct) ->
         })
         .collect::<Vec<_>>();
 
-    struct_from_fields(struct_name, &fields)
+    struct_from_fields(struct_name, &fields, rkyv)
 }
 
 pub fn vertex_attributes_to_struct(
     struct_name: &str,
     attributes: &[VertexAttribute],
+    rkyv: bool,
 ) -> syn::ItemStruct {
     let fields = attributes
         .iter()
@@ -441,7 +460,7 @@ pub fn vertex_attributes_to_struct(
         })
         .collect::<Vec<_>>();
 
-    struct_from_fields(struct_name, &fields)
+    struct_from_fields(struct_name, &fields, rkyv)
 }
 
 pub fn structs_to_file(
@@ -462,10 +481,15 @@ pub fn structs_to_file(
 
 pub fn standardized_struct_name(prefix: &str, name: &str) -> String {
     use heck::ToUpperCamelCase;
-    format!("{}_{}", prefix, name).to_upper_camel_case()
+    format!("{prefix}_{name}").to_upper_camel_case()
 }
 
-pub fn write_shader_structs(bytes: &[u8], prefix: &'static str, output: impl AsRef<Path>) {
+pub fn write_shader_structs(
+    bytes: &[u8],
+    prefix: &'static str,
+    output: impl AsRef<Path>,
+    rkyv: bool,
+) {
     let shader_data = ShaderData::from_spv(bytes).unwrap();
     let shader_structs = {
         let mut descriptor_structs = shader_data.get_shader_structs();
@@ -478,7 +502,7 @@ pub fn write_shader_structs(bytes: &[u8], prefix: &'static str, output: impl AsR
         .into_iter()
         .map(|stct| {
             let struct_name = standardized_struct_name(prefix, &stct.name);
-            shader_struct_to_rust(&struct_name, &stct)
+            shader_struct_to_rust(&struct_name, &stct, rkyv)
         })
         .collect::<Vec<_>>();
 
@@ -487,6 +511,7 @@ pub fn write_shader_structs(bytes: &[u8], prefix: &'static str, output: impl AsR
         let stct = vertex_attributes_to_struct(
             &standardized_struct_name(prefix, "Vertex"),
             &vert_attributes.atts,
+            rkyv,
         );
         rust_shader_structs.push(stct);
     }
